@@ -31,7 +31,7 @@ func NewApp() *gear.App {
 
 	groups, err := LoadFiles(conf.Config.GlobalSignal)
 	if err != nil {
-		logging.Panicf("DigInvoke error: %v", err)
+		logging.Panicf("Load files error: %v", err)
 	}
 
 	app.UseHandler(groups)
@@ -53,7 +53,10 @@ func (gs Groups) lookupFile(path string) (string, []byte) {
 			if data, ok := group.Files[name]; ok {
 				return name, data
 			}
-			return "index.html", group.Default
+
+			if len(group.Default) > 0 {
+				return "index.html", group.Default
+			}
 		}
 	}
 
@@ -99,6 +102,8 @@ func LoadFiles(ctx context.Context) (Groups, error) {
 				if err != nil {
 					return nil, err
 				}
+
+				logging.Infof("Load %s from: %s, %d bytes", prefix+name, objectKey, len(data))
 
 				if name == "*" {
 					group.Default = data
