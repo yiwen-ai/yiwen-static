@@ -49,6 +49,12 @@ type Server struct {
 	GracefulShutdown uint   `json:"graceful_shutdown" toml:"graceful_shutdown"`
 }
 
+type Cookie struct {
+	Domain    string `json:"domain" toml:"domain"`
+	Secure    bool   `json:"secure" toml:"secure"`
+	ExpiresIn uint   `json:"expires_in" toml:"expires_in"`
+}
+
 type OSS struct {
 	Bucket          string `json:"bucket" toml:"bucket"`
 	Endpoint        string `json:"endpoint" toml:"endpoint"`
@@ -63,6 +69,7 @@ type ConfigTpl struct {
 	GlobalShutdown context.Context
 	Env            string                       `json:"env" toml:"env"`
 	Logger         Logger                       `json:"log" toml:"log"`
+	Cookie         Cookie                       `json:"cookie" toml:"cookie"`
 	Server         Server                       `json:"server" toml:"server"`
 	OSS            OSS                          `json:"oss" toml:"oss"`
 	Assets         map[string]map[string]string `json:"assets" toml:"assets"`
