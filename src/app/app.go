@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -64,7 +65,10 @@ func (gs Groups) lookupFile(path string) (string, []byte) {
 	return "", nil
 }
 
+const Wechat_UA = "MicroMessenger/"
+
 func (gs Groups) Serve(ctx *gear.Context) error {
+	logging.SetTo(ctx, "host", ctx.Host)
 	if ctx.Method != http.MethodGet && ctx.Method != http.MethodHead {
 		status := 200
 		if ctx.Method != http.MethodOptions {
@@ -75,9 +79,30 @@ func (gs Groups) Serve(ctx *gear.Context) error {
 		return ctx.End(status)
 	}
 
+	isWechat := strings.Contains(ctx.GetHeader(gear.HeaderUserAgent), Wechat_UA)
+	// https://www.yiwen.pub/pub/ck1sasaglcahc6fks810?language=zho&by=ke82hfgs3ni
+	if ctx.Host == "www.yiwen.pub" && !isWechat {
+		next := &url.URL{
+			Scheme:   "https",
+			Host:     "www.yiwen.ai",
+			Path:     ctx.Path,
+			RawQuery: ctx.Req.URL.RawQuery,
+		}
+		return ctx.Redirect(next.String())
+	}
+
 	name, file := gs.lookupFile(ctx.Path)
 	if name != "" {
-		handleCookie(ctx)
+		if name == "index.html" {
+			lang := handleContext(ctx)
+			app := "web"
+			if isWechat {
+				app = "wechat"
+			}
+
+			html := fmt.Sprintf(`<html lang="%s" data-app="%s">`, lang, app)
+			file = bytes.Replace(file, []byte("<html>"), []byte(html), 1)
+		}
 		http.ServeContent(ctx.Res, ctx.Req, name, startTime, bytes.NewReader(file))
 	}
 
@@ -132,12 +157,30 @@ func GetVersion() map[string]string {
 	}
 }
 
-func handleCookie(ctx *gear.Context) {
+func handleContext(ctx *gear.Context) (lang string) {
 	logging.SetTo(ctx, "referer", ctx.GetHeader(gear.HeaderReferer))
 	// user preferred language
-	if cookie, _ := ctx.Req.Cookie("lang"); cookie != nil {
-		logging.SetTo(ctx, "lang", cookie.Value)
+	lang = ctx.Query("language")
+	if lang == "" {
+		lang = ctx.Query("lang")
 	}
+	if lang == "" {
+		lang = ctx.GetHeader("x-language")
+	}
+	if lang == "" {
+		if c, _ := ctx.Req.Cookie("lang"); c != nil {
+			lang = c.Value
+		} else if locale := ctx.AcceptLanguage(); locale != "" {
+			if i := strings.IndexAny(locale, "-_"); i > 0 {
+				locale = locale[:i]
+			}
+			lang = locale
+		}
+	}
+
+	lang = Lang639_3(lang)
+	logging.SetTo(ctx, "lang", lang)
+
 	// user preferred currency
 	if cookie, _ := ctx.Req.Cookie("ccy"); cookie != nil {
 		logging.SetTo(ctx, "ccy", cookie.Value)
@@ -146,10 +189,8 @@ func handleCookie(ctx *gear.Context) {
 	// 用户推荐人
 	if cookie, _ := ctx.Req.Cookie("by"); cookie != nil {
 		logging.SetTo(ctx, "by", cookie.Value)
-		return
-	}
-	// 如果 url 中包含用户推荐人，则设置到 cookie
-	if by := ctx.Query("by"); len(by) > 0 && len(by) <= 20 {
+	} else if by := ctx.Query("by"); len(by) > 0 && len(by) <= 20 {
+		// 如果 url 中包含用户推荐人，则设置到 cookie
 		logging.SetTo(ctx, "by", by)
 		http.SetCookie(ctx.Res, &http.Cookie{
 			Name:     "by",
@@ -161,6 +202,7 @@ func handleCookie(ctx *gear.Context) {
 			Domain:   conf.Config.Cookie.Domain,
 			SameSite: http.SameSiteLaxMode,
 		})
-		return
 	}
+
+	return
 }
