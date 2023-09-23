@@ -93,7 +93,10 @@ func (gs Groups) Serve(ctx *gear.Context) error {
 
 	name, file := gs.lookupFile(ctx.Path)
 	if name != "" {
+		ctx.SetHeader(gear.HeaderCacheControl, "public, max-age=604800, must-revalidate")
+
 		if name == "index.html" {
+			ctx.SetHeader(gear.HeaderCacheControl, "no-cache, no-store")
 			lang := handleContext(ctx)
 			app := "web"
 			if isWechat {
@@ -160,10 +163,7 @@ func GetVersion() map[string]string {
 func handleContext(ctx *gear.Context) (lang string) {
 	logging.SetTo(ctx, "referer", ctx.GetHeader(gear.HeaderReferer))
 	// user preferred language
-	lang = ctx.Query("language")
-	if lang == "" {
-		lang = ctx.Query("lang")
-	}
+	lang = ctx.Query("lang")
 	if lang == "" {
 		lang = ctx.GetHeader("x-language")
 	}
