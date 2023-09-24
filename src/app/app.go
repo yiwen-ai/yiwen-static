@@ -186,6 +186,11 @@ func handleContext(ctx *gear.Context) (lang string) {
 		logging.SetTo(ctx, "ccy", cookie.Value)
 	}
 
+	domain := conf.Config.Cookie.Domain
+	if strings.HasSuffix(ctx.Host, "yiwen.pub") {
+		domain = "yiwen.pub"
+	}
+
 	// 用户推荐人
 	if cookie, _ := ctx.Req.Cookie("by"); cookie != nil {
 		logging.SetTo(ctx, "by", cookie.Value)
@@ -199,7 +204,21 @@ func handleContext(ctx *gear.Context) (lang string) {
 			Secure:   conf.Config.Cookie.Secure,
 			MaxAge:   int(conf.Config.Cookie.ExpiresIn),
 			Path:     "/",
-			Domain:   conf.Config.Cookie.Domain,
+			Domain:   domain,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+
+	if env := ctx.Query("env"); len(env) > 0 {
+		logging.SetTo(ctx, "env", env)
+		http.SetCookie(ctx.Res, &http.Cookie{
+			Name:     "env",
+			Value:    env,
+			HttpOnly: true,
+			Secure:   conf.Config.Cookie.Secure,
+			MaxAge:   int(conf.Config.Cookie.ExpiresIn),
+			Path:     "/",
+			Domain:   domain,
 			SameSite: http.SameSiteLaxMode,
 		})
 	}
