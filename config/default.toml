@@ -22,6 +22,23 @@ endpoint = "oss-cn-hangzhou.aliyuncs.com"
 access_key_id = ""
 access_key_secret = ""
 
+[ssr]
+ssr_host = "webscraper.base:8080"
+robots = [
+  "Googlebot",
+  "Bingbot",
+  "Slurp",
+  "DuckDuckBot",
+  "Baiduspider",
+  "YandexBot",
+  "Sogou",
+  "Exabot",
+  "facebot",
+  "Applebot",
+  "Spider",
+  "robot",
+]
+
 [assets."/"]
 "*" = "oss://dev/web/dist/index.html"
 "favicon.ico" = "oss://favicon.ico"

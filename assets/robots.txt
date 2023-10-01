@@ -1,2 +1,6 @@
 User-agent: *
-Disallow: /u/
+Disallow: /wallet
+Disallow: /search
+Disallow: /following
+Disallow: /bookmark
+allow: /

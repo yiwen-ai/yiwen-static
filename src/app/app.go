@@ -3,10 +3,15 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +23,11 @@ import (
 )
 
 var startTime = time.Now()
+var ssrProxy http.Handler
+
+func init() {
+	ssrProxy = buildProxy(conf.Config.SSR.SSRHost)
+}
 
 // NewApp ...
 func NewApp() *gear.App {
@@ -77,6 +87,14 @@ func (gs Groups) Serve(ctx *gear.Context) error {
 		ctx.SetHeader(gear.HeaderContentType, "text/plain; charset=utf-8")
 		ctx.SetHeader(gear.HeaderAllow, "GET, HEAD, OPTIONS")
 		return ctx.End(status)
+	}
+
+	ua := ctx.GetHeader(gear.HeaderUserAgent)
+	if ctx.Method == http.MethodGet && slices.ContainsFunc(conf.Config.SSR.Robots, func(bot string) bool {
+		return strings.Contains(ua, bot)
+	}) {
+		ssrProxy.ServeHTTP(ctx.Res, ctx.Req)
+		return nil
 	}
 
 	isWechat := strings.Contains(ctx.GetHeader(gear.HeaderUserAgent), Wechat_UA)
@@ -224,4 +242,60 @@ func handleContext(ctx *gear.Context) (lang string) {
 	}
 
 	return
+}
+
+func buildProxy(ssrHost string) http.Handler {
+	proxy := &httputil.ReverseProxy{
+		Director: func(outReq *http.Request) {
+			u := outReq.URL
+			if outReq.RequestURI != "" {
+				parsedURL, err := url.ParseRequestURI(outReq.RequestURI)
+				if err == nil {
+					u = parsedURL
+				}
+			}
+
+			outReq.Host = ""
+			outReq.URL.Scheme = "http"
+			outReq.URL.Host = ssrHost
+			outReq.URL.Path = u.Path
+			outReq.URL.RawPath = u.RawPath
+			outReq.URL.RawQuery = strings.ReplaceAll(u.RawQuery, ";", "&")
+			outReq.RequestURI = "" // Outgoing request should not have RequestURI
+
+			outReq.Proto = "HTTP/1.1"
+			outReq.ProtoMajor = 1
+			outReq.ProtoMinor = 1
+		},
+		FlushInterval: time.Duration(time.Millisecond * 100),
+		ErrorHandler: func(w http.ResponseWriter, request *http.Request, err error) {
+			statusCode := http.StatusInternalServerError
+
+			switch {
+			case errors.Is(err, io.EOF):
+				statusCode = http.StatusBadGateway
+			case errors.Is(err, context.Canceled):
+				statusCode = 499
+			default:
+				var netErr net.Error
+				if errors.As(err, &netErr) {
+					if netErr.Timeout() {
+						statusCode = http.StatusGatewayTimeout
+					} else {
+						statusCode = http.StatusBadGateway
+					}
+				}
+			}
+
+			err = gear.ErrByStatus(statusCode).WithMsg(err.Error())
+			logging.Debugf("'%d' caused by: %v", statusCode, err)
+			w.WriteHeader(statusCode)
+			_, werr := w.Write([]byte(err.Error()))
+			if werr != nil {
+				logging.Debugf("Error while writing status code: %v", werr)
+			}
+		},
+	}
+
+	return proxy
 }

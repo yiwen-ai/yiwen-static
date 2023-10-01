@@ -62,6 +62,11 @@ type OSS struct {
 	AccessKeySecret string `json:"access_key_secret" toml:"access_key_secret"`
 }
 
+type SSR struct {
+	SSRHost string   `json:"ssr_host" toml:"ssr_host"`
+	Robots  []string `json:"robots" toml:"robots"`
+}
+
 // ConfigTpl ...
 type ConfigTpl struct {
 	Rand           *rand.Rand
@@ -72,6 +77,7 @@ type ConfigTpl struct {
 	Cookie         Cookie                       `json:"cookie" toml:"cookie"`
 	Server         Server                       `json:"server" toml:"server"`
 	OSS            OSS                          `json:"oss" toml:"oss"`
+	SSR            SSR                          `json:"ssr" toml:"ssr"`
 	Assets         map[string]map[string]string `json:"assets" toml:"assets"`
 
 	globalJobs int64 // global async jobs counter for graceful shutdown
