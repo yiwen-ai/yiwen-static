@@ -36,6 +36,7 @@ robots = [
   "facebot",
   "Applebot",
   "Spider",
+  "Robot",
   "robot",
 ]
 

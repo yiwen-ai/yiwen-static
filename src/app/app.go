@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -39,6 +38,7 @@ func NewApp() *gear.App {
 	app.Set(gear.SetCompress, gear.ThresholdCompress(128))
 	app.Set(gear.SetGraceTimeout, time.Duration(conf.Config.Server.GracefulShutdown)*time.Second)
 	app.Set(gear.SetEnv, conf.Config.Env)
+	app.Set(gear.SetServerName, "Yiwen")
 
 	app.UseHandler(logging.AccessLogger)
 	groups, err := LoadFiles(conf.Config.GlobalSignal)
@@ -89,13 +89,14 @@ func (gs Groups) Serve(ctx *gear.Context) error {
 		return ctx.End(status)
 	}
 
-	ua := ctx.GetHeader(gear.HeaderUserAgent)
-	if ctx.Method == http.MethodGet && slices.ContainsFunc(conf.Config.SSR.Robots, func(bot string) bool {
-		return strings.Contains(ua, bot)
-	}) {
-		ssrProxy.ServeHTTP(ctx.Res, ctx.Req)
-		return nil
-	}
+	// SSR is dispatched by gateway
+	// ua := ctx.GetHeader(gear.HeaderUserAgent)
+	// if ctx.Method == http.MethodGet && slices.ContainsFunc(conf.Config.SSR.Robots, func(bot string) bool {
+	// 	return strings.Contains(ua, bot)
+	// }) {
+	// 	ssrProxy.ServeHTTP(ctx.Res, ctx.Req)
+	// 	return nil
+	// }
 
 	isWechat := strings.Contains(ctx.GetHeader(gear.HeaderUserAgent), Wechat_UA)
 	// https://www.yiwen.pub/pub/ck1sasaglcahc6fks810?language=zho&by=ke82hfgs3ni
@@ -111,10 +112,10 @@ func (gs Groups) Serve(ctx *gear.Context) error {
 
 	name, file := gs.lookupFile(ctx.Path)
 	if name != "" {
-		ctx.SetHeader(gear.HeaderCacheControl, "public, max-age=604800, must-revalidate")
+		ctx.SetHeader(gear.HeaderCacheControl, "public, max-age=604800")
 
 		if name == "index.html" {
-			ctx.SetHeader(gear.HeaderCacheControl, "no-cache, no-store")
+			ctx.SetHeader(gear.HeaderCacheControl, "no-cache")
 			lang := handleContext(ctx)
 			app := "web"
 			if isWechat {
@@ -178,10 +179,10 @@ func GetVersion() map[string]string {
 	}
 }
 
-func handleContext(ctx *gear.Context) (lang string) {
+func handleContext(ctx *gear.Context) string {
 	logging.SetTo(ctx, "referer", ctx.GetHeader(gear.HeaderReferer))
 	// user preferred language
-	lang = ctx.Query("lang")
+	lang := ctx.Query("lang")
 	if lang == "" {
 		lang = ctx.GetHeader("x-language")
 	}
@@ -196,7 +197,12 @@ func handleContext(ctx *gear.Context) (lang string) {
 		}
 	}
 
-	lang = Lang639_3(lang)
+	langs := Lang639(lang)
+	if len(langs) == 0 {
+		langs = Lang639("en")
+	}
+
+	lang = langs[1]
 	logging.SetTo(ctx, "lang", lang)
 
 	// user preferred currency
@@ -241,7 +247,7 @@ func handleContext(ctx *gear.Context) (lang string) {
 		})
 	}
 
-	return
+	return langs[0]
 }
 
 func buildProxy(ssrHost string) http.Handler {
