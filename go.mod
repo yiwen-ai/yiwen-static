@@ -3,7 +3,7 @@ module github.com/yiwen-ai/yiwen-static
 go 1.21
 
 require (
-	github.com/BurntSushi/toml v1.3.2
+	github.com/BurntSushi/toml v1.4.0
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.1+incompatible
 	github.com/teambition/gear v1.27.3
 )
